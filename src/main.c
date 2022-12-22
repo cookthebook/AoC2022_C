@@ -80,6 +80,9 @@ int main(int argc, char **argv)
     case 12:
         ret = day12(&app);
         break;
+    case 13:
+        ret = day13(&app);
+        break;
     default:
         log_error("Invalid day selection \"%s\"\n", day);
         ret = APP_ERROR_INVALID;
