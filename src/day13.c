@@ -18,8 +18,9 @@ typedef struct list_struct {
 
 static app_error_e list_from_str(list_t *lst, char *str, char **end_ptr);
 static void list_newitem(list_t *lst);
-static void list_print(list_t *lst);
-static int list_cmp(list_t *rhs, list_t *lhs);
+static void list_print(const list_t *lst);
+static int list_cmp(const list_t *rhs, const list_t *lhs);
+static int list_cmp_qsort(const void *rhs, const void *lhs);
 
 app_error_e day13(app_t *app)
 {
@@ -55,24 +56,40 @@ app_error_e day13(app_t *app)
         return APP_ERROR_INVALID;
     }
 
-    for (int i = 0; i < packets_n; i += 2) {
-        if (list_cmp(&packets[i], &packets[i+1]) < 0) {
-            result += (i/2) + 1;
-            log_debug("Pair in order:\n");
-            list_print(&packets[i]);
-            list_print(&packets[i+1]);
-        } else {
-            list_t tmp;
-            memcpy(&tmp, &packets[i], sizeof(list_t));
-            memcpy(&packets[i], &packets[i+1], sizeof(tmp));
-            memcpy(&packets[i+1], &tmp, sizeof(list_t));
-        }
-    }
-
     if (app->star2) {
-        log_debug("Lists after reorder:\n");
         int d1_idx = 0;
         int d2_idx = 0;
+
+        /* insert extra distress packets and sort */
+        packets_n += 2;
+        packets = realloc(packets, sizeof(*packets)*packets_n);
+        packets[packets_n-2].cnt = 1;
+        packets[packets_n-2].lens = (int []){ 1 };
+        packets[packets_n-2].items = (struct list_item []) {
+            {
+                .num = 0,
+                .lst = (struct list_struct []) {{
+                    .items = (struct list_item []) {{ .num = 2, .lst = NULL }},
+                    .lens = NULL,
+                    .cnt = 1
+                }}
+            }
+        };
+        packets[packets_n-1].cnt = 1;
+        packets[packets_n-1].lens = (int []){ 1 };
+        packets[packets_n-1].items = (struct list_item []) {
+            {
+                .num = 0,
+                .lst = (struct list_struct []) {{
+                    .items = (struct list_item []) {{ .num = 6, .lst = NULL }},
+                    .lens = NULL,
+                    .cnt = 1
+                }}
+            }
+        };
+
+        qsort(packets, packets_n, sizeof(*packets), list_cmp_qsort);
+        log_debug("Sorted packets:\r\n");
         for (int i = 0; i < packets_n; i++) {
             list_print(&packets[i]);
             if (
@@ -82,7 +99,7 @@ app_error_e day13(app_t *app)
                 packets[i].items[0].lst->cnt == 1 &&
                 packets[i].items[0].lst->items[0].num == 2
             ) {
-                d1_idx = i;
+                d1_idx = i+1;
                 log_debug("Found distress signal 1 at %d\n", i);
             }
             else if (
@@ -92,13 +109,26 @@ app_error_e day13(app_t *app)
                 packets[i].items[0].lst->cnt == 1 &&
                 packets[i].items[0].lst->items[0].num == 6
             ) {
-                d2_idx = i;
+                d2_idx = i+1;
                 log_debug("Found distress signal 2 at %d\n", i);
             }
         }
 
         log_print("Result (%d*%d) = %d\n", d1_idx, d2_idx, d1_idx*d2_idx);
     } else {
+        for (int i = 0; i < packets_n; i += 2) {
+            if (list_cmp(&packets[i], &packets[i+1]) < 0) {
+                result += (i/2) + 1;
+                log_debug("Pair in order:\n");
+                list_print(&packets[i]);
+                list_print(&packets[i+1]);
+            } else {
+                list_t tmp;
+                memcpy(&tmp, &packets[i], sizeof(list_t));
+                memcpy(&packets[i], &packets[i+1], sizeof(tmp));
+                memcpy(&packets[i+1], &tmp, sizeof(list_t));
+            }
+        }
         log_print("Result = %d\n", result);
     }
 
@@ -172,7 +202,7 @@ static void list_newitem(list_t *lst)
     lst->lens[lst->cnt-1] = 0;
 }
 
-static void __list_print_recur(list_t *lst)
+static void __list_print_recur(const list_t *lst)
 {
     log_print("[");
     for (int i = 0; i < lst->cnt; i++) {
@@ -184,7 +214,7 @@ static void __list_print_recur(list_t *lst)
     }
     log_print("]");
 }
-static void list_print(list_t *lst)
+static void list_print(const list_t *lst)
 {
     if (!log_get_debug())
         return;
@@ -194,7 +224,7 @@ static void list_print(list_t *lst)
     log_print("\n");
 }
 
-static int list_cmp(list_t *lhs, list_t *rhs)
+static int list_cmp(const list_t *lhs, const list_t *rhs)
 {
     int min = rhs->cnt < lhs->cnt ? rhs->cnt : lhs->cnt;
 
@@ -244,4 +274,9 @@ static int list_cmp(list_t *lhs, list_t *rhs)
     } else {
         return 1;
     }
+}
+
+static int list_cmp_qsort(const void *rhs, const void *lhs)
+{
+    return list_cmp((list_t *)rhs, (list_t *)lhs);
 }
